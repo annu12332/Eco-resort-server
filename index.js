@@ -39,9 +39,10 @@ app.get('/api/cottages', async (req, res) => {
 app.post('/api/cottages', async (req, res) => {
     try {
         const { images, ...otherData } = req.body;
+        
         const cottageData = {
             ...otherData,
-            image: images && images.length > 0 ? images[0] : "",
+            image: images && Array.isArray(images) ? images : [],
         };
 
         const newCottage = new Cottage(cottageData);
