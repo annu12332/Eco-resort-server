@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -24,6 +25,7 @@ mongoose.connect(process.env.MONGO_URI)
     .catch(err => console.log("❌ DB Error:", err.message));
 
 // --- COTTAGE API ROUTES ---
+// GET all cottages
 app.get('/api/cottages', async (req, res) => {
     try {
         const cottages = await Cottage.find().sort({ createdAt: -1 });
@@ -33,28 +35,25 @@ app.get('/api/cottages', async (req, res) => {
     }
 });
 
-// --- UPDATED POST ROUTE FOR COTTAGE ---
+// POST new cottage
 app.post('/api/cottages', async (req, res) => {
     try {
-        // ফ্রন্টএন্ড থেকে আসা ডাটা destructure করুন
         const { images, ...otherData } = req.body;
-        
-        // মডেলে 'image' (string) ফিল্ড আছে, তাই ইমেজ অ্যারের প্রথম ছবিটি সেট করুন
         const cottageData = {
             ...otherData,
-            image: images && images.length > 0 ? images[0] : "", // প্রথম ছবিটি সেট হবে
+            image: images && images.length > 0 ? images[0] : "",
         };
 
         const newCottage = new Cottage(cottageData);
         await newCottage.save();
         res.status(201).json(newCottage);
     } catch (error) {
-        console.error("Backend Error:", error); // সার্ভার টার্মিনালে এরর দেখার জন্য
+        console.error("Backend Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
-// ---------------------------------------
 
+// PUT update cottage
 app.put('/api/cottages/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -65,6 +64,7 @@ app.put('/api/cottages/:id', async (req, res) => {
     }
 });
 
+// DELETE cottage
 app.delete('/api/cottages/:id', async (req, res) => {
     try {
         await Cottage.findByIdAndDelete(req.params.id);
@@ -74,62 +74,75 @@ app.delete('/api/cottages/:id', async (req, res) => {
     }
 });
 
-// --- SINGLE COTTAGE BY ID ---
+// --- SINGLE COTTAGE (ID or Slug) ---
+// This fixes the 500 error when frontend sends slug instead of ID
 app.get('/api/cottages/:id', async (req, res) => {
     try {
-        const cottage = await Cottage.findById(req.params.id);
+        const { id } = req.params;
+        let cottage;
+
+        if (mongoose.Types.ObjectId.isValid(id)) {
+            // If valid ObjectId, find by _id
+            cottage = await Cottage.findById(id);
+        } else {
+            // Otherwise, try find by slug
+            cottage = await Cottage.findOne({ slug: id });
+        }
+
         if (!cottage) {
             return res.status(404).json({ success: false, message: "Cottage not found" });
         }
+
         res.status(200).json(cottage);
     } catch (error) {
-        res.status(500).json({ success: false, message: "Invalid Cottage ID or Server Error" });
+        console.error("Fetch Cottage Error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// --- COTTAGE & PACKAGE BOOKING API ROUTES ---
+// --- COTTAGE & PACKAGE BOOKING ROUTES ---
 app.post('/api/bookings', async (req, res) => {
     try {
         const newBooking = new RoomBooking(req.body);
         await newBooking.save();
 
         if (process.env.TELEGRAM_BOT_TOKEN) {
-            const msg = `🔔 *New Cottage Booking!* \n🏡 Cottage: ${req.body.roomTitle} \n👤 Guest: ${req.body.guestName} \n📞 Phone: ${req.body.phone}`;
+            const msg = `🔔 *New Cottage Booking!* \n🏡 Cottage: ${req.body.cottageTitle} \n👤 Guest: ${req.body.guestName} \n📞 Phone: ${req.body.phone}`;
             axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                 chat_id: process.env.TELEGRAM_CHAT_ID,
                 text: msg,
                 parse_mode: 'Markdown'
             }).catch(e => console.log("Telegram Notification Failed"));
         }
+
         res.status(201).json({ success: true, data: newBooking, message: "Booking Successful!" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
+// PACKAGE BOOKING
 app.post('/api/package-bookings', async (req, res) => {
     try {
-        const packageBooking = new RoomBooking({
-            ...req.body
-        });
-        
+        const packageBooking = new RoomBooking({ ...req.body });
         await packageBooking.save();
 
         if (process.env.TELEGRAM_BOT_TOKEN) {
-            const msg = `🎁 *New Package Booking!* \n📦 Package: ${req.body.roomTitle} \n👤 Guest: ${req.body.guestName}`;
+            const msg = `🎁 *New Package Booking!* \n📦 Package: ${req.body.cottageTitle} \n👤 Guest: ${req.body.guestName}`;
             axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                 chat_id: process.env.TELEGRAM_CHAT_ID,
                 text: msg,
                 parse_mode: 'Markdown'
             }).catch(e => console.log("Telegram Failed"));
         }
-        
+
         res.status(201).json({ success: true, message: "Package Booked Successfully!", data: packageBooking });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
+// GET bookings
 app.get('/api/bookings', async (req, res) => {
     try {
         const bookings = await RoomBooking.find().sort({ createdAt: -1 });
@@ -139,6 +152,7 @@ app.get('/api/bookings', async (req, res) => {
     }
 });
 
+// PATCH booking status
 app.patch('/api/bookings/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -154,6 +168,7 @@ app.patch('/api/bookings/:id', async (req, res) => {
     }
 });
 
+// DELETE booking
 app.delete('/api/bookings/:id', async (req, res) => {
     try {
         await RoomBooking.findByIdAndDelete(req.params.id);
@@ -163,7 +178,7 @@ app.delete('/api/bookings/:id', async (req, res) => {
     }
 });
 
-// --- GALLERY API ROUTES ---
+// --- GALLERY API ---
 app.get('/api/gallery', async (req, res) => {
     try {
         const photos = await Gallery.find().sort({ createdAt: -1 });
@@ -179,7 +194,7 @@ app.post('/api/gallery', async (req, res) => {
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-// --- OFFERS API ROUTES ---
+// --- OFFERS API ---
 app.get('/api/offers', async (req, res) => {
     try {
         const offers = await Offer.find().sort({ createdAt: -1 });
@@ -202,7 +217,7 @@ app.delete('/api/offers/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// --- BLOG API ROUTES ---
+// --- BLOG API ---
 app.get('/api/blogs', async (req, res) => {
     try {
         const blogs = await Blog.find().sort({ createdAt: -1 });
@@ -240,7 +255,7 @@ app.delete('/api/blogs/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// --- PACKAGE API ROUTES ---
+// --- PACKAGE API ---
 app.get('/api/packages', async (req, res) => {
     try {
         const packages = await Package.find().sort({ createdAt: -1 });
@@ -293,6 +308,6 @@ app.get('/api/admin/stats', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false }); }
 });
 
-// Server Start
+// --- SERVER START ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
