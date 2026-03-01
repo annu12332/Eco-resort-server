@@ -60,8 +60,8 @@ const cottageSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// --- UPDATED PRE-SAVE HOOK WITH ERROR HANDLING ---
-cottageSchema.pre('save', function(next) {
+// --- UPDATED ASYNC PRE-SAVE HOOK WITH ERROR HANDLING ---
+cottageSchema.pre('save', async function(next) {
   try {
     // Check if title exists to avoid errors
     if (this.title && (this.isModified('title') || this.isNew)) {
