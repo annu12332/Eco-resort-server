@@ -12,6 +12,8 @@ const Gallery = require('./models/Gallery');
 const Offer = require('./models/Offers'); 
 const Blog = require('./models/Blog'); 
 const Package = require('./models/Package'); 
+// 1. ADDED: Activity Model
+const Activity = require('./models/Activity'); 
 
 const app = express();
 
@@ -293,6 +295,39 @@ app.delete('/api/packages/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// --- ACTIVITIES API ---
+// 2. ADDED: GET all activities
+app.get('/api/activities', async (req, res) => {
+    try {
+        const activities = await Activity.find().sort({ createdAt: -1 });
+        res.json(activities);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// 2. ADDED: POST new activity
+app.post('/api/activities', async (req, res) => {
+    try {
+        const newActivity = new Activity(req.body);
+        await newActivity.save();
+        res.status(201).json(newActivity);
+    } catch (err) { res.status(400).json({ message: err.message }); }
+});
+app.put('/api/activities/:id', async (req, res) => {
+    try {
+        const updatedActivity = await Activity.findByIdAndUpdate(
+            req.params.id, 
+            { $set: req.body }, 
+            { new: true }
+        );
+        res.json(updatedActivity);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+app.delete('/api/activities/:id', async (req, res) => {
+    try {
+        await Activity.findByIdAndDelete(req.params.id);
+        res.status(200).json({ success: true, message: "Activity deleted" });
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
 // --- ADMIN STATS ---
 app.get('/api/admin/stats', async (req, res) => {
     try {
