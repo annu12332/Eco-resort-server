@@ -19,8 +19,9 @@ const cottageSchema = new mongoose.Schema({
     default: 'Bamboo Cabin'
   },
   image: {
-    type: String,
-    default: ""
+  type: [String],
+    
+    default:[] 
   },
   size: {
     type: String,
@@ -53,24 +54,29 @@ const cottageSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-
-// ✅ FIXED PRE-SAVE HOOK (NO next, NO callback mix)
+// ✅ PRE-SAVE HOOK WITH AUTO-UNIQUE SLUG
 cottageSchema.pre('save', async function () {
-
-  // Generate slug only if title changed or new document
   if (this.title && (this.isModified('title') || this.isNew)) {
-    this.slug = this.title
+    let baseSlug = this.title
       .toLowerCase()
       .trim()
       .replace(/\s+/g, '-')       // multiple space handle
       .replace(/[^\w-]+/g, '');   // remove special char
+
+    let slug = baseSlug;
+    let count = 1;
+
+    // Check if slug already exists in DB
+    while (await mongoose.models.Cottage.findOne({ slug })) {
+      slug = `${baseSlug}-${count++}`;  // add -1, -2, etc
+    }
+
+    this.slug = slug;
   }
 
-  // Safety check
   if (!this.slug) {
     throw new Error("Title is missing, cannot generate slug");
   }
-
 });
 
 module.exports = mongoose.model('Cottage', cottageSchema);
