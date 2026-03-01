@@ -60,11 +60,28 @@ const cottageSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+// --- UPDATED PRE-SAVE HOOK WITH ERROR HANDLING ---
 cottageSchema.pre('save', function(next) {
-  if (this.isModified('title') || this.isNew) {
-    this.slug = this.title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+  try {
+    // Check if title exists to avoid errors
+    if (this.title && (this.isModified('title') || this.isNew)) {
+      this.slug = this.title
+        .toLowerCase()
+        .trim()
+        .replace(/ /g, '-')
+        .replace(/[^\w-]+/g, '');
+    }
+    
+    // Safety check: if title is missing, prevent save
+    if (!this.slug) {
+        throw new Error("Title is missing, cannot generate slug");
+    }
+
+    next(); // Always call next()
+  } catch (error) {
+    // If error occurs, pass it to next()
+    next(error);
   }
-  next();
 });
 
 module.exports = mongoose.model('Cottage', cottageSchema);

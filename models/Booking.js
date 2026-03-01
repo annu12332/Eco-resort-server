@@ -6,7 +6,7 @@ const bookingSchema = new mongoose.Schema({
         required: false, 
         default: "navbar_inquiry" 
     },
-    roomTitle: { type: String, required: true },
+    roomTitle: { type: String, required: false },
     guestName: { type: String, required: true },
     email: { type: String, required: true }, 
     phone: { type: String, required: true }, 

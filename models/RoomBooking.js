@@ -4,11 +4,11 @@ const roomBookingSchema = new mongoose.Schema({
     // রুমের ডিটেইলস (RoomDetails.jsx থেকে আসছে)
     roomId: {
         type: String,
-        required: true
+        required: false
     },
     roomTitle: {
         type: String,
-        required: true
+        required: false
     },
 
     // আপনার ফর্মের ইনপুট ফিল্ডগুলো
