@@ -5,7 +5,7 @@ const axios = require('axios');
 require('dotenv').config();
 
 // Models
-const Room = require('./models/Room'); 
+const Cottage = require('./models/AddCottage'); 
 const RoomBooking = require('./models/RoomBooking');
 const Gallery = require('./models/Gallery');
 const Offer = require('./models/Offers'); 
@@ -23,54 +23,78 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ Connected to MongoDB"))
     .catch(err => console.log("❌ DB Error:", err.message));
 
-// --- ROOM API ROUTES ---
-app.get('/api/rooms', async (req, res) => {
+// --- COTTAGE API ROUTES ---
+app.get('/api/cottages', async (req, res) => {
     try {
-        const rooms = await Room.find().sort({ createdAt: -1 });
-        res.status(200).json(rooms);
+        const cottages = await Cottage.find().sort({ createdAt: -1 });
+        res.status(200).json(cottages);
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
-app.post('/api/rooms', async (req, res) => {
+// --- UPDATED POST ROUTE FOR COTTAGE ---
+app.post('/api/cottages', async (req, res) => {
     try {
-        const newRoom = new Room(req.body);
-        await newRoom.save();
-        res.status(201).json(newRoom);
+        // ফ্রন্টএন্ড থেকে আসা ডাটা destructure করুন
+        const { images, ...otherData } = req.body;
+        
+        // মডেলে 'image' (string) ফিল্ড আছে, তাই ইমেজ অ্যারের প্রথম ছবিটি সেট করুন
+        const cottageData = {
+            ...otherData,
+            image: images && images.length > 0 ? images[0] : "", // প্রথম ছবিটি সেট হবে
+        };
+
+        const newCottage = new Cottage(cottageData);
+        await newCottage.save();
+        res.status(201).json(newCottage);
     } catch (error) {
-        res.status(500).json({ success: false, message: "Room creation failed" });
+        console.error("Backend Error:", error); // সার্ভার টার্মিনালে এরর দেখার জন্য
+        res.status(500).json({ success: false, message: error.message });
     }
 });
+// ---------------------------------------
 
-app.put('/api/rooms/:id', async (req, res) => {
+app.put('/api/cottages/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const updatedRoom = await Room.findByIdAndUpdate(id, { $set: req.body }, { new: true });
-        res.status(200).json(updatedRoom);
+        const updatedCottage = await Cottage.findByIdAndUpdate(id, { $set: req.body }, { new: true });
+        res.status(200).json(updatedCottage);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-app.delete('/api/rooms/:id', async (req, res) => {
+app.delete('/api/cottages/:id', async (req, res) => {
     try {
-        await Room.findByIdAndDelete(req.params.id);
-        res.status(200).json({ success: true, message: "Room deleted" });
+        await Cottage.findByIdAndDelete(req.params.id);
+        res.status(200).json({ success: true, message: "Cottage deleted" });
     } catch (error) {
         res.status(500).json({ success: false });
     }
 });
 
-// --- ROOM BOOKING API ROUTES ---
+// --- SINGLE COTTAGE BY ID ---
+app.get('/api/cottages/:id', async (req, res) => {
+    try {
+        const cottage = await Cottage.findById(req.params.id);
+        if (!cottage) {
+            return res.status(404).json({ success: false, message: "Cottage not found" });
+        }
+        res.status(200).json(cottage);
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Invalid Cottage ID or Server Error" });
+    }
+});
+
+// --- COTTAGE & PACKAGE BOOKING API ROUTES ---
 app.post('/api/bookings', async (req, res) => {
     try {
-        // RoomBooking মডেল ব্যবহার করা হচ্ছে যা আপনার ফ্রন্টএন্ডের সাথে মিলবে
         const newBooking = new RoomBooking(req.body);
         await newBooking.save();
 
         if (process.env.TELEGRAM_BOT_TOKEN) {
-            const msg = `🔔 *New Room Booking!* \n🏨 Room: ${req.body.roomTitle} \n👤 Guest: ${req.body.guestName} \n📞 Phone: ${req.body.phone}`;
+            const msg = `🔔 *New Cottage Booking!* \n🏡 Cottage: ${req.body.roomTitle} \n👤 Guest: ${req.body.guestName} \n📞 Phone: ${req.body.phone}`;
             axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                 chat_id: process.env.TELEGRAM_CHAT_ID,
                 text: msg,
@@ -85,7 +109,6 @@ app.post('/api/bookings', async (req, res) => {
 
 app.post('/api/package-bookings', async (req, res) => {
     try {
-        // প্যাকেজ বুকিংয়ের জন্যও RoomBooking মডেল ব্যবহার করা হয়েছে লজিক ঠিক রাখতে
         const packageBooking = new RoomBooking({
             ...req.body
         });
@@ -137,19 +160,6 @@ app.delete('/api/bookings/:id', async (req, res) => {
         res.status(200).json({ success: true, message: "Booking removed successfully" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// --- SINGLE ROOM BY ID ---
-app.get('/api/rooms/:id', async (req, res) => {
-    try {
-        const room = await Room.findById(req.params.id);
-        if (!room) {
-            return res.status(404).json({ success: false, message: "Room not found" });
-        }
-        res.status(200).json(room);
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Invalid Room ID or Server Error" });
     }
 });
 
@@ -270,12 +280,12 @@ app.delete('/api/packages/:id', async (req, res) => {
 // --- ADMIN STATS ---
 app.get('/api/admin/stats', async (req, res) => {
     try {
-        const totalRooms = await Room.countDocuments();
+        const totalCottages = await Cottage.countDocuments();
         const totalPackages = await Package.countDocuments();
         const bookings = await RoomBooking.find();
         
         res.status(200).json({
-            totalRooms,
+            totalCottages,
             totalPackages,
             totalBookings: bookings.length,
             pendingBookings: bookings.filter(b => b.status === 'Pending').length
